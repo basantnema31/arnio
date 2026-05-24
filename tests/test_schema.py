@@ -2686,3 +2686,56 @@ def test_schema_field_only_roundtrip_with_rules_present():
     assert restored.strict is True
     assert list(restored.unique) == ["id"]
     assert not restored.rules
+
+
+def test_schema_initialization_with_list_raises_typeerror():
+    fields = [ar.Field()]
+    with pytest.raises(TypeError, match="must be a dictionary mapping column names to Field objects"):
+        ar.Schema(fields)
+
+
+def test_is_safely_convertible_to_dtype():
+    import numpy as np
+    from arnio.schema import _is_safely_convertible_to_dtype
+
+    # 1. Empty series (or all null values) should return False
+    assert not _is_safely_convertible_to_dtype(pd.Series([None, None], dtype="object"), "int64", "col")
+    assert not _is_safely_convertible_to_dtype(pd.Series([], dtype="object"), "int64", "col")
+
+    # 2. Identifier-like column names with leading zeros should return False
+    assert not _is_safely_convertible_to_dtype(pd.Series(["0123", "456"]), "int64", "id")
+    assert not _is_safely_convertible_to_dtype(pd.Series(["0123", "456"]), "int64", "user_id")
+    assert not _is_safely_convertible_to_dtype(pd.Series(["0123", "456"]), "int64", "zipcode")
+    assert not _is_safely_convertible_to_dtype(pd.Series(["0123", "456"]), "int64", "zip_code")
+    assert not _is_safely_convertible_to_dtype(pd.Series(["0123", "456"]), "int64", "uuid")
+    
+    # 3. Non-identifier-like column names with leading zeros can return True
+    assert _is_safely_convertible_to_dtype(pd.Series(["0123", "456"]), "int64", "some_value")
+
+    # 4. Valid int64 conversion
+    assert _is_safely_convertible_to_dtype(pd.Series(["123", "-456"]), "int64", "col")
+    assert _is_safely_convertible_to_dtype(pd.Series(["123", None]), "int64", "col")
+
+    # 5. Invalid int64 strings should return False
+    assert not _is_safely_convertible_to_dtype(pd.Series(["123.4", "56"]), "int64", "col")
+    assert not _is_safely_convertible_to_dtype(pd.Series(["123", "abc"]), "int64", "col")
+
+    # 6. Out of bounds int64 values should return False
+    assert not _is_safely_convertible_to_dtype(pd.Series(["9223372036854775808"]), "int64", "col")
+    assert not _is_safely_convertible_to_dtype(pd.Series(["-9223372036854775809"]), "int64", "col")
+
+    # 7. In bounds boundary int64 values should return True
+    assert _is_safely_convertible_to_dtype(pd.Series(["9223372036854775807"]), "int64", "col")
+    assert _is_safely_convertible_to_dtype(pd.Series(["-9223372036854775808"]), "int64", "col")
+
+    # 8. Valid float64 conversion
+    assert _is_safely_convertible_to_dtype(pd.Series(["1.23", "-4.5"]), "float64", "col")
+    assert _is_safely_convertible_to_dtype(pd.Series(["123", "456"]), "float64", "col")
+    assert _is_safely_convertible_to_dtype(pd.Series(["1.23", None]), "float64", "col")
+
+    # 9. Invalid float64 strings should return False
+    assert not _is_safely_convertible_to_dtype(pd.Series(["abc", "1.2"]), "float64", "col")
+    assert not _is_safely_convertible_to_dtype(pd.Series(["1.2.3"]), "float64", "col")
+
+    # 10. Unsupported expected_dtype should return False
+    assert not _is_safely_convertible_to_dtype(pd.Series(["abc"]), "object", "col")
