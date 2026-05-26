@@ -465,7 +465,9 @@ def normalize_unicode(
             operation="normalize_unicode",
         )
 
-    df = to_pandas(frame).copy()
+    import pandas as pd
+    is_arframe = not isinstance(frame, pd.DataFrame)
+    df = to_pandas(frame) if is_arframe else frame.copy(deep=False)
 
     columns = (
         subset
@@ -478,7 +480,7 @@ def normalize_unicode(
             lambda x: unicodedata.normalize(form, x) if isinstance(x, str) else x
         )
 
-    return from_pandas(df)
+    return from_pandas(df) if is_arframe else df
 
 
 def rename_columns(
@@ -705,7 +707,7 @@ def round_numeric_columns(
         raise TypeError("decimals must be an integer")
 
     is_arframe = not isinstance(frame, pd.DataFrame)
-    df = to_pandas(frame) if is_arframe else frame.copy()
+    df = to_pandas(frame) if is_arframe else frame.copy(deep=False)
 
     if subset is not None:
         missing = [col for col in subset if col not in df.columns]
@@ -826,7 +828,7 @@ def replace_values(frame, mapping, column=None):
 
     is_arframe = not isinstance(frame, pd.DataFrame)
     # Avoid mutating the caller's DataFrame in the direct pandas API path.
-    df = to_pandas(frame) if is_arframe else frame.copy()
+    df = to_pandas(frame) if is_arframe else frame.copy(deep=False)
 
     if column is not None:
         if not isinstance(column, str) or not column.strip():
